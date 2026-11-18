@@ -42,3 +42,14 @@ def start_run(conn: psycopg.Connection, mode: str) -> int:
         ).fetchone()
     return row[0]
 
+def load_file(conn: psycopg.Connection, run_id: int, file: CandleFile) -> tuple[int, int]:
+    try:
+        df = read(file)
+        with conn.transaction():
+            inserted, updated = upsert(conn, df)
+            conn.execute(ITEM_SQL, (run_id, str(file.path), file.mtime, file.symbol, file.tf,
+                                    df.height, inserted, updated, "success", None))
+        return inserted, updated
+    except Exception as err:
+        with conn.transaction():
+            conn.execute(ITEM_SQL, (run_id, str(file.path), file.mtime, file.symbol, file.tf, 0, 0, 0, "failed", str(err)))
