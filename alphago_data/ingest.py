@@ -38,7 +38,7 @@ def upsert(conn: psycopg.Connection, df: pl.DataFrame) -> tuple[int, int]:
 def start_run(conn: psycopg.Connection, mode: str) -> int:
     with conn.transaction():
         row = conn.execute(
-            "INSTO pipeline_runs (mode) VALUES (%s) RETURNING run_id", (mode,)
+            "INSERT INTO pipeline_runs (mode) VALUES (%s) RETURNING run_id", (mode,)
         ).fetchone()
     return row[0]
 
