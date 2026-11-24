@@ -40,6 +40,17 @@ SET STATUS = %s, finished_at = now(),
 WHERE run_id = %s
 """
 
+WATERMARK_SQL = """
+SELECT file_path, max(file_mtime) FROM pipeline_run_items WHERE status = 'success' GROUP BY file_path
+"""
+
+def changed(conn: psycopg.Connection, files: list[CandleFile]) -> list[CandleFile]:
+    loaded = dict(conn.execute(WATERMARK_SQL).fetchall());
+    return [
+        f for f in files
+        if str(f.path) not in loaded or f.mtime > loaded[str(f.path)]
+    ]
+
 def upsert(conn: psycopg.Connection, df: pl.DataFrame) -> tuple[int, int]:
     if df.height == 0:
         return 0, 0
@@ -69,6 +80,7 @@ def load_file(conn: psycopg.Connection, run_id: int, file: CandleFile) -> tuple[
     except Exception as err:
         with conn.transaction():
             conn.execute(ITEM_SQL, (run_id, str(file.path), file.mtime, file.symbol, file.tf, 0, 0, 0, "failed", str(err)))
+        raise
 
 def run(conn: psycopg.Connection, files: list[CandleFile], mode: str) -> str:
     """Load every file, one transaction each. A failed file does not stop the run."""
@@ -109,9 +121,7 @@ def main() -> int:
     if not url or not data_dir:
         print("DATABASE_URL and CANDLE_DATA_DIR must be set", file=sys.stderr);
         return 2
-    if not args.full:
-        print("incremental mode comes in T7: use --full for now", file=sys.stderr);
-        return 2
+
 
     candle_dir = Path(data_dir);
     files = discover(candle_dir, symbol_names(candle_dir.parent / "symbols.json"));
