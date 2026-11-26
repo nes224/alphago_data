@@ -122,7 +122,6 @@ def main() -> int:
         print("DATABASE_URL and CANDLE_DATA_DIR must be set", file=sys.stderr);
         return 2
 
-
     candle_dir = Path(data_dir);
     files = discover(candle_dir, symbol_names(candle_dir.parent / "symbols.json"));
     files = [
